@@ -116,19 +116,16 @@ class web3swift_infura_Tests: XCTestCase {
             guard let keystore = try? EthereumKeystoreV3(privateKey: Data(hex: "55d86c90105fb928ad61c817aa34902b7070868086ba48c30b7d56852fdd6346"), password: "qqqqqqqq", aesMode: "aes-128-ctr") else { return XCTFail() }
             let web3 = Web3.InfuraRinkebyWeb3()
             web3.addKeystoreManager(KeystoreManager([keystore]))
-            let nonce = try web3.eth.getTransactionCount(address: keystore.addresses!.first!)
-            var transaction = EthereumTransaction(gasPrice: Web3.Utils.parseToBigUInt("1.0", units: .Gwei) ?? BigUInt(0),
-                                                  gasLimit: BigUInt(21000),
-                                                  to: EthereumAddress("0xa3Fb93979c22766666F8105534295A1Feaee61a3")!,
-                                                  value: Web3.Utils.parseToBigUInt("0.1", units: .eth) ?? BigUInt(0),
-                                                  data: Data())
-            transaction.nonce = nonce
-            transaction.UNSAFE_setChainID(web3.provider.network?.chainID)
-            transaction.max_priority_fee_per_gas = Web3.Utils.parseToBigUInt("2", units: .Gwei)
-            transaction.max_fee_per_gas = Web3.Utils.parseToBigUInt("2.000000131", units: .Gwei)
-            transaction.type = BigUInt(2)
-            try Web3Signer.signTX(transaction: &transaction, keystore: keystore, account: keystore.addresses!.first!, password: "qqqqqqqq")
-            let result = try web3.eth.sendRawTransaction(transaction)
+            let to = EthereumAddress("0xa3Fb93979c22766666F8105534295A1Feaee61a3")!
+            let contract = web3.contract(Web3.Utils.coldWalletABI, at: to, abiVersion: 2)!
+            var options = TransactionOptions.defaultOptions
+            options.nonce = .pending
+            options.value = Web3.Utils.parseToBigUInt("0.001", units: .eth)
+            options.from = keystore.addresses?.first
+            options.gasLimit = .manual(BigUInt(21000))
+            options.transactionType = .EIP1559(Web3.Utils.parseToBigUInt("2.0", units: .Gwei)!, Web3.Utils.parseToBigUInt("2.000000131 ", units: .Gwei)!)
+            let intermediate = contract.method("fallback", transactionOptions: options)
+            guard let result = try intermediate?.send(password: "qqqqqqqq", transactionOptions: options) else { return XCTFail() }
             print("hash = \(result.hash)")
         } catch {
             XCTFail()

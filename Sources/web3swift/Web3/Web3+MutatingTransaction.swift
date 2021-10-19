@@ -74,6 +74,17 @@ public class WriteTransaction: ReadTransaction {
             optionsForGasEstimation.value = mergedOptions.value
             optionsForGasEstimation.gasLimit = mergedOptions.gasLimit
             optionsForGasEstimation.callOnBlock = mergedOptions.callOnBlock
+            optionsForGasEstimation.transactionType = mergedOptions.transactionType
+            
+            switch optionsForGasEstimation.transactionType {
+            case let .EIP1559(maxPriorityFeePerGas, maxFeePerGas):
+                assembledTransaction.type = BigUInt(2)
+                assembledTransaction.max_priority_fee_per_gas = maxPriorityFeePerGas
+                assembledTransaction.max_fee_per_gas = maxFeePerGas
+                break
+            default:
+                break
+            }
             
             // assemble promise for gasLimit
             var gasEstimatePromise: Promise<BigUInt>? = nil
