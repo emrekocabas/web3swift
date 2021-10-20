@@ -483,6 +483,7 @@ public struct Block:Decodable {
     public var timestamp: Date
     public var transactions: [TransactionInBlock]
     public var uncles: [Data]
+    public var baseFeePerGas: BigUInt = .zero
     
     enum CodingKeys: String, CodingKey
     {
@@ -505,6 +506,7 @@ public struct Block:Decodable {
         case timestamp
         case transactions
         case uncles
+        case baseFeePerGas
     }
     
     public init(from decoder: Decoder) throws {
@@ -581,6 +583,10 @@ public struct Block:Decodable {
             uncles.append(d)
         }
         self.uncles = uncles
+        if let baseFeePerGas = try? decodeHexToBigUInt(container, key: .baseFeePerGas) {
+            self.baseFeePerGas = baseFeePerGas
+        }
+        
     }
 }
 

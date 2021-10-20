@@ -419,6 +419,17 @@ public extension EthereumTransaction {
         if options.to != nil {
             tx.to = options.to!
         }
+        
+        tx.type = BigUInt(options.transactionType.rawValue)
+        
+        if case let .manual(maxPriorityFeePerGas) = options.maxPriorityFeePerGas {
+            tx.max_priority_fee_per_gas = maxPriorityFeePerGas
+        }
+        
+        if case let .manual(maxFeePerGas) = options.maxFeePerGas {
+            tx.max_fee_per_gas = maxFeePerGas
+        }
+        
         return tx
     }
     

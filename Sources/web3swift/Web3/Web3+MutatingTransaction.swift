@@ -74,26 +74,30 @@ public class WriteTransaction: ReadTransaction {
             optionsForGasEstimation.value = mergedOptions.value
             optionsForGasEstimation.gasLimit = mergedOptions.gasLimit
             optionsForGasEstimation.callOnBlock = mergedOptions.callOnBlock
-            optionsForGasEstimation.transactionType = mergedOptions.transactionType
-            
-            switch optionsForGasEstimation.transactionType {
-            case let .EIP1559(maxPriorityFeePerGas, maxFeePerGas):
-                assembledTransaction.type = BigUInt(2)
-                assembledTransaction.max_priority_fee_per_gas = maxPriorityFeePerGas
-                assembledTransaction.max_fee_per_gas = maxFeePerGas
-                break
-            default:
-                break
-            }
-            
+
             // assemble promise for gasLimit
             var gasEstimatePromise: Promise<BigUInt>? = nil
+            
             guard let gasLimitPolicy = mergedOptions.gasLimit else {
                 seal.reject(Web3Error.inputError(desc: "No gasLimit policy provided"))
                 return
             }
             switch gasLimitPolicy {
             case .automatic, .withMargin, .limited:
+                // After EIP-1559 takes effect, baseFeePerGas needs to be considered, and the handling fee must be able to pay the benchmark handling fee
+                if mergedOptions.transactionType == .EIP1559 {
+                    do {
+                        let blockNum = try self.web3.eth.getBlockNumber()
+                        let block = try self.web3.eth.getBlockByNumber(blockNum)
+                        guard let baseGasFee = Web3.Utils.parseToBigUInt(block.baseFeePerGas.description, units: .Gwei) else {
+                            throw Web3Error.inputError(desc: "Invalid baseFeePerGas")
+                        }
+                        optionsForGasEstimation.gasPrice = .manual(baseGasFee)
+                        assembledTransaction.gasPrice = baseGasFee
+                    } catch {
+                        seal.reject(Web3Error.inputError(desc: "Invalid baseFeePerGas"))
+                    }
+                }
                 gasEstimatePromise = self.web3.eth.estimateGasPromise(assembledTransaction, transactionOptions: optionsForGasEstimation)
             case .manual(let gasLimit):
                 gasEstimatePromise = Promise<BigUInt>.value(gasLimit)
@@ -148,6 +152,19 @@ public class WriteTransaction: ReadTransaction {
                     throw Web3Error.processingError(desc: "Missing parameter of gas price for transaction")
                 }
                 
+                if mergedOptions.transactionType == .EIP1559 {
+                    guard case let .manual(maxPriorityFeePerGas) = mergedOptions.maxPriorityFeePerGas,maxPriorityFeePerGas > .zero else {
+                        throw Web3Error.processingError(desc: "No maxPriorityFeePerGas policy provided")
+                    }
+                    guard case let .manual(maxFeePerGas) = mergedOptions.maxFeePerGas,maxFeePerGas > .zero else {
+                        throw Web3Error.processingError(desc: "No maxFeePerGas policy provided")
+                    }
+                    guard maxFeePerGas > maxPriorityFeePerGas else {
+                        throw Web3Error.processingError(desc: "MaxFeePerGas must be greater than maxPriorityFeePerGas")
+                    }
+                    assembledTransaction.max_fee_per_gas = maxFeePerGas
+                    assembledTransaction.max_priority_fee_per_gas = maxPriorityFeePerGas
+                }
     
                 assembledTransaction.nonce = nonce
                 assembledTransaction.gasLimit = estimate
@@ -191,6 +208,9 @@ public class WriteTransaction: ReadTransaction {
             var cleanedOptions = TransactionOptions()
             cleanedOptions.from = mergedOptions.from
             cleanedOptions.to = mergedOptions.to
+            cleanedOptions.transactionType = mergedOptions.transactionType
+//            cleanedOptions.maxFeePerGas = mergedOptions.maxFeePerGas
+//            cleanedOptions.maxPriorityFeePerGas = mergedOptions.maxPriorityFeePerGas
             return self.web3.eth.sendTransactionPromise(transaction, transactionOptions: cleanedOptions, password: password)
         }
     }

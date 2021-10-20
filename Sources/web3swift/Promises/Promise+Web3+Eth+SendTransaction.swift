@@ -38,6 +38,23 @@ extension web3.Eth {
             assembledTransaction = forAssemblyPipeline.0
             mergedOptions = forAssemblyPipeline.1
             
+            assembledTransaction.type = BigUInt(mergedOptions.transactionType.rawValue)
+            
+            if mergedOptions.transactionType == .EIP1559 {
+            
+                guard assembledTransaction.max_priority_fee_per_gas ?? .zero > .zero else {
+                    throw Web3Error.processingError(desc: "No maxPriorityFeePerGas policy provided")
+                }
+                
+                guard assembledTransaction.max_fee_per_gas ?? .zero > .zero else {
+                    throw Web3Error.processingError(desc: "No maxFeePerGas policy provided")
+                }
+                
+                guard assembledTransaction.max_fee_per_gas ?? .zero > assembledTransaction.max_priority_fee_per_gas ?? .zero else {
+                    throw Web3Error.processingError(desc: "MaxFeePerGas must be greater than maxPriorityFeePerGas")
+                }
+            }
+            
             if self.web3.provider.attachedKeystoreManager == nil {
                 guard let request = EthereumTransaction.createRequest(method: .sendTransaction, transaction: assembledTransaction, transactionOptions: mergedOptions) else
                 {
@@ -62,17 +79,7 @@ extension web3.Eth {
             guard let from = mergedOptions.from else {
                 throw Web3Error.inputError(desc: "No 'from' field provided")
             }
-            
-            switch mergedOptions.transactionType {
-            case let .EIP1559(maxPriorityFeePerGas, maxFeePerGas):
-                assembledTransaction.type = BigUInt(2)
-                assembledTransaction.max_priority_fee_per_gas = maxPriorityFeePerGas
-                assembledTransaction.max_fee_per_gas = maxFeePerGas
-                break
-            default:
-                break
-            }
-            
+    
             do {
                 try Web3Signer.signTX(transaction: &assembledTransaction, keystore: self.web3.provider.attachedKeystoreManager!, account: from, password: password)
             } catch {

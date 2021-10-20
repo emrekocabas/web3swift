@@ -25,11 +25,21 @@ public struct TransactionOptions {
     /// Can be nil if one reads the information from the blockchain.
     public var from: EthereumAddress? = nil
     
-    public enum TransactionType {
-        case Legacy
-        case EIP1559(_ maxPriorityFeePerGas: BigUInt, _ maxFeePerGas: BigUInt)
+    public enum TransactionType: Int {
+        case Legacy = 0
+        case EIP1559 = 2
     }
     public var transactionType: TransactionType = .Legacy
+    
+    public enum MaxPriorityFeePerGasPolicy {
+        case manual(BigUInt)
+    }
+    public var maxPriorityFeePerGas: MaxPriorityFeePerGasPolicy?
+    
+    public enum MaxFeePerGasPolicy {
+        case manual(BigUInt)
+    }
+    public var maxFeePerGas: MaxFeePerGasPolicy?
     
     public enum GasLimitPolicy {
         case automatic
@@ -86,6 +96,16 @@ public struct TransactionOptions {
         return opts
     }
     
+    public static var defaultEIP1559Options: TransactionOptions {
+        var opts = TransactionOptions()
+        opts.callOnBlock = .pending
+        opts.nonce = .pending
+        opts.transactionType = .EIP1559
+        opts.maxFeePerGas = .manual(.zero)
+        opts.maxPriorityFeePerGas = .manual(.zero)
+        return opts
+    }
+    
     public func resolveGasPrice(_ suggestedByNode: BigUInt) -> BigUInt? {
         guard let gasPricePolicy = self.gasPrice else {return nil}
         switch gasPricePolicy {
@@ -125,6 +145,9 @@ public struct TransactionOptions {
         opts.value = mergeIfNotNil(first: self.value, second: other.value)
         opts.nonce = mergeIfNotNil(first: self.nonce, second: other.nonce)
         opts.callOnBlock = mergeIfNotNil(first: self.callOnBlock, second: other.callOnBlock)
+        opts.transactionType = otherOptions?.transactionType ?? .Legacy
+        opts.maxPriorityFeePerGas = mergeIfNotNil(first: self.maxPriorityFeePerGas, second: other.maxPriorityFeePerGas)
+        opts.maxFeePerGas = mergeIfNotNil(first: self.maxFeePerGas, second: other.maxFeePerGas)
         return opts
     }
     
@@ -164,9 +187,13 @@ public struct TransactionOptions {
             options.callOnBlock = .pending
         }
         
-        if let maxPriorityFeePerGasHex = json["maxPriorityFeePerGas"] as? String, let maxPriorityFeePerGas = BigUInt(maxPriorityFeePerGasHex.stripHexPrefix(), radix: 16),
-           let maxFeePerGasHex = json["maxFeePerGas"] as? String, let maxFeePerGas = BigUInt(maxFeePerGasHex.stripHexPrefix(), radix: 16) {
-            options.transactionType = .EIP1559(maxPriorityFeePerGas, maxFeePerGas)
+        if let maxPriorityFeePerGasHex = json["maxPriorityFeePerGas"] as? String,
+           let maxPriorityFeePerGas = BigUInt(maxPriorityFeePerGasHex.stripHexPrefix(), radix: 16),
+           let maxFeePerGasHex = json["maxFeePerGas"] as? String,
+           let maxFeePerGas = BigUInt(maxFeePerGasHex.stripHexPrefix(), radix: 16) {
+            options.transactionType = .EIP1559
+            options.maxPriorityFeePerGas = .manual(maxPriorityFeePerGas)
+            options.maxFeePerGas = .manual(maxFeePerGas)
         }
         return options
     }
@@ -204,6 +231,24 @@ public struct TransactionOptions {
             newOptions.value = other?.value
         } else {
             newOptions.value = options?.value
+        }
+        
+        if (other?.transactionType != nil) {
+            newOptions.transactionType = other?.transactionType ?? .Legacy
+        } else {
+            newOptions.transactionType = options?.transactionType ?? .Legacy
+        }
+        
+        if (other?.maxPriorityFeePerGas != nil) {
+            newOptions.maxPriorityFeePerGas = other?.maxPriorityFeePerGas
+        } else {
+            newOptions.maxPriorityFeePerGas = options?.maxPriorityFeePerGas
+        }
+        
+        if (other?.maxFeePerGas != nil) {
+            newOptions.maxFeePerGas = other?.maxFeePerGas
+        } else {
+            newOptions.maxFeePerGas = options?.maxFeePerGas
         }
         return newOptions
     }

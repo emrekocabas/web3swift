@@ -70,15 +70,6 @@ extension web3 {
             let mergedOptions = self.transactionOptions?.merge(transactionOptions)
             guard var tx = self.contract.method(method, parameters: parameters, extraData: extraData) else {return nil}
             tx.chainID = self.web3.provider.network?.chainID
-            switch mergedOptions?.transactionType {
-            case let .EIP1559(maxPriorityFeePerGas, maxFeePerGas):
-                tx.type = BigUInt(2)
-                tx.max_priority_fee_per_gas = maxPriorityFeePerGas
-                tx.max_fee_per_gas = maxFeePerGas
-                break
-            default:
-                break
-            }
             let writeTX = WriteTransaction.init(transaction: tx, web3: self.web3, contract: self.contract, method: method, transactionOptions: mergedOptions)
             return writeTX
         }
@@ -107,15 +98,6 @@ extension web3 {
             let mergedOptions = self.transactionOptions?.merge(transactionOptions)
             guard var tx = self.contract.method(method, parameters: parameters, extraData: extraData) else {return nil}
             tx.chainID = self.web3.provider.network?.chainID
-            switch mergedOptions?.transactionType {
-            case let .EIP1559(maxPriorityFeePerGas, maxFeePerGas):
-                tx.type = BigUInt(2)
-                tx.max_priority_fee_per_gas = maxPriorityFeePerGas
-                tx.max_fee_per_gas = maxFeePerGas
-                break
-            default:
-                break
-            }
             let writeTX = WriteTransaction.init(transaction: tx, web3: self.web3, contract: self.contract, method: method, transactionOptions: mergedOptions)
             return writeTX
         }

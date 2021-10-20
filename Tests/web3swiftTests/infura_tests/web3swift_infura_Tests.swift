@@ -118,24 +118,30 @@ class web3swift_infura_Tests: XCTestCase {
             web3.addKeystoreManager(KeystoreManager([keystore]))
             let to = EthereumAddress("0xa3Fb93979c22766666F8105534295A1Feaee61a3")!
             let contract = web3.contract(Web3.Utils.coldWalletABI, at: to, abiVersion: 2)!
-            var options = TransactionOptions.defaultOptions
-            options.nonce = .pending
-            options.value = Web3.Utils.parseToBigUInt("0.001", units: .eth)
+            var options = TransactionOptions.defaultEIP1559Options
+//            options.nonce = .pending
+//            options.value = Web3.Utils.parseToBigUInt("0.001", units: .eth)
             options.from = keystore.addresses?.first
-            options.gasLimit = .manual(BigUInt(21000))
-            options.transactionType = .EIP1559(Web3.Utils.parseToBigUInt("2.0", units: .Gwei)!, Web3.Utils.parseToBigUInt("2.000000131 ", units: .Gwei)!)
-            let intermediate = contract.method("fallback", transactionOptions: options)
+//            options.gasLimit = .manual(BigUInt(321000))
+//            options.transactionType = .EIP1559
+//            options.maxFeePerGas = .manual(.zero)
+            options.maxFeePerGas = .manual(Web3.Utils.parseToBigUInt("5.000000131 ", units: .Gwei)!)
+//            options.maxPriorityFeePerGas = .manual(.zero)
+            options.maxPriorityFeePerGas = .manual(Web3.Utils.parseToBigUInt("1.0", units: .Gwei)!)
+//            let intermediate = try web3.eth.sendERC20tokensWithNaturalUnits(tokenAddress: EthereumAddress("0xc7ad46e0b8a400bb3c915120d284aafba8fc4735")!, from: EthereumAddress("0x6d8e3Af13A7684973db63BA84dfFe42820774aa4")!, to: to, amount: "1", transactionOptions: options)
+            let intermediate = web3.eth.sendETH(to: to, amount: "0.0001")
+//            let intermediate = contract.method("fallback", transactionOptions: options)
             guard let result = try intermediate?.send(password: "qqqqqqqq", transactionOptions: options) else { return XCTFail() }
             print("hash = \(result.hash)")
         } catch {
-            XCTFail()
+            print("error = \(error)")
         }
     }
     
     func testgetTransactionReceiptWithEip1559() throws {
         do {
             let web3 = Web3.InfuraRinkebyWeb3()
-            let receipt = try web3.eth.getTransactionReceipt("0x2ca77daaad5908fa8942828d496903b287b76260c396c6262c417abd54055ed9")
+            let receipt = try web3.eth.getTransactionReceipt("0xdddca1e6beb45c91de95d2134dd74ab94594a5b2f241941a4ef2f07399f6bc81")
             print("hash = \(receipt)")
         } catch {
             XCTFail()
@@ -145,7 +151,12 @@ class web3swift_infura_Tests: XCTestCase {
     func testgetTransactionDetailsWithEip1559() throws {
         do {
             let web3 = Web3.InfuraRinkebyWeb3()
-            let details = try web3.eth.getTransactionDetails("0x2ca77daaad5908fa8942828d496903b287b76260c396c6262c417abd54055ed9")
+            
+            let number = try web3.eth.getBlockNumber()
+            let block = try web3.eth.getBlockByNumber(number)
+            print("block = \(block.baseFeePerGas.description)")
+            
+            let details = try web3.eth.getTransactionDetails("0xdddca1e6beb45c91de95d2134dd74ab94594a5b2f241941a4ef2f07399f6bc81")
             print("hash = \(details.transaction.sender?.address)")
         } catch {
             XCTFail()
