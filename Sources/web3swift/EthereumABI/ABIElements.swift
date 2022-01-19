@@ -43,6 +43,7 @@ public extension ABI {
         case constructor(Constructor)
         case fallback(Fallback)
         case event(Event)
+        case receive(Receive)
         
         public enum StateMutability {
             case payable
@@ -142,6 +143,15 @@ public extension ABI {
                 }
             }
         }
+        public struct Receive {
+            public let payable: Bool
+            public let inputs: [InOut]
+            
+            public init(inputs: [InOut], payable: Bool) {
+                self.inputs = inputs
+                self.payable = payable
+            }
+        }
     }
 }
 
@@ -161,6 +171,8 @@ extension ABI.Element {
             let signature = function.methodEncoding
             guard let data = ABIEncoder.encode(types: function.inputs, values: parameters) else {return nil}
             return signature + data
+        case .receive(_):
+            return nil
         }
     }
 }
@@ -175,6 +187,40 @@ extension ABI.Element {
         case .fallback(_):
             return nil
         case .function(let function):
+            // the response size greater than equal 100 bytes, when read function aborted by "require" statement.
+            // if "require" statement has no message argument, the response is empty (0 byte).
+            if( data.bytes.count >= 100 ){
+                let check00_31 = BigUInt( "08C379A000000000000000000000000000000000000000000000000000000000", radix:16 )!
+                let check32_63 = BigUInt( "0000002000000000000000000000000000000000000000000000000000000000", radix:16 )!
+
+                // check data[00-31] and data[32-63]
+                if check00_31 == BigUInt( data[0...31] ) && check32_63 == BigUInt( data[32...63] ) {
+                    // data.bytes[64-67] contains the length of require message
+                    let len = (Int(data.bytes[64])<<24) | (Int(data.bytes[65])<<16) | (Int(data.bytes[66])<<8) | Int(data.bytes[67])
+
+                    let message = String( bytes:data.bytes[68..<(68+len)], encoding:.utf8 )!
+
+                    print( "read function aborted by require statement: \(message)" )
+
+                    var returnArray = [String:Any]()
+
+                    // set infomation
+                    returnArray["_abortedByRequire"] = true
+                    returnArray["_errorMessageFromRequire"] = message
+
+                    // set empty values
+                    for i in 0 ..< function.outputs.count {
+                        let name = "\(i)"
+                        returnArray[name] = function.outputs[i].type.emptyValue
+                        if function.outputs[i].name != "" {
+                            returnArray[function.outputs[i].name] = function.outputs[i].type.emptyValue
+                        }
+                    }
+
+                    return returnArray
+                }
+            }
+            // the "require" statement with no message argument will be caught here
             if (data.count == 0 && function.outputs.count == 1) {
                 let name = "0"
                 let value = function.outputs[0].type.emptyValue
@@ -198,7 +244,11 @@ extension ABI.Element {
                 }
                 i = i + 1
             }
+            // set a flag to detect the request succeeded
+            returnArray["_success"] = true
             return returnArray
+        case .receive(_):
+            return nil
         }
     }
     
@@ -272,6 +322,8 @@ extension ABI.Element {
                 i = i + 1
             }
             return returnArray
+        case .receive(_):
+            return nil
         }
     }
 }
