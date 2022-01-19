@@ -110,6 +110,10 @@ extension EthereumTransaction:Decodable {
         case r
         case s
         case value
+        case type
+        case maxFeePerGas
+        case maxPriorityFeePerGas
+        case chainId
     }
     
     public init(from decoder: Decoder) throws {
@@ -140,6 +144,24 @@ extension EthereumTransaction:Decodable {
         guard let s = try decodeHexToBigUInt(container, key: .s) else {throw Web3Error.dataError}
         self.s = s
         
+        if let type = try? decodeHexToBigUInt(container, key: .type) {
+            self.type = type
+        }
+        
+        if let chainId = try? decodeHexToBigUInt(container, key: .chainId) {
+            self.chainID = chainId
+        }
+        
+        if let maxFeePerGas = try? decodeHexToBigUInt(container, key: .maxFeePerGas) {
+            self.max_fee_per_gas = maxFeePerGas
+        }
+        
+        if let maxPriorityFeePerGas = try? decodeHexToBigUInt(container, key: .maxPriorityFeePerGas) {
+            self.max_priority_fee_per_gas = maxPriorityFeePerGas
+        }
+        
+        
+        
         if options.value == nil || options.to == nil || options.gasLimit == nil || options.gasPrice == nil{
             throw Web3Error.dataError
         }
@@ -165,7 +187,7 @@ extension EthereumTransaction:Decodable {
         }
         
         let inferedChainID = self.inferedChainID
-        if (self.inferedChainID != nil && self.v >= BigUInt(37)) {
+        if (self.inferedChainID != nil && self.v >= BigUInt(37)) && self.chainID == nil {
             self.chainID = inferedChainID
         }
     }

@@ -7,6 +7,7 @@
 import XCTest
 
 @testable import web3swift
+import BigInt
 
 // MARK: Works only with network connection
 class web3swift_infura_Tests: XCTestCase {
@@ -108,4 +109,50 @@ class web3swift_infura_Tests: XCTestCase {
         let pres = try eventParser.parseBlockByNumber(UInt64(2138657))
         XCTAssert(pres.count == 1)
     }
+    
+    
+    func testSendTransactionWithEip1559() throws {
+        do {
+            guard let keystore = try? EthereumKeystoreV3(privateKey: Data(hex: "55d86c90105fb928ad61c817aa34902b7070868086ba48c30b7d56852fdd6346"), password: "qqqqqqqq", aesMode: "aes-128-ctr") else { return XCTFail() }
+            let web3 = Web3.InfuraRinkebyWeb3()
+            web3.addKeystoreManager(KeystoreManager([keystore]))
+            let nonce = try web3.eth.getTransactionCount(address: keystore.addresses!.first!)
+            var transaction = EthereumTransaction(gasPrice: Web3.Utils.parseToBigUInt("1.0", units: .Gwei) ?? BigUInt(0),
+                                                  gasLimit: BigUInt(21000),
+                                                  to: EthereumAddress("0xa3Fb93979c22766666F8105534295A1Feaee61a3")!,
+                                                  value: Web3.Utils.parseToBigUInt("0.1", units: .eth) ?? BigUInt(0),
+                                                  data: Data())
+            transaction.nonce = nonce
+            transaction.UNSAFE_setChainID(web3.provider.network?.chainID)
+            transaction.max_priority_fee_per_gas = Web3.Utils.parseToBigUInt("2", units: .Gwei)
+            transaction.max_fee_per_gas = Web3.Utils.parseToBigUInt("2.000000131", units: .Gwei)
+            transaction.type = BigUInt(2)
+            try Web3Signer.signTX(transaction: &transaction, keystore: keystore, account: keystore.addresses!.first!, password: "qqqqqqqq")
+            let result = try web3.eth.sendRawTransaction(transaction)
+            print("hash = \(result.hash)")
+        } catch {
+            XCTFail()
+        }
+    }
+    
+    func testgetTransactionReceiptWithEip1559() throws {
+        do {
+            let web3 = Web3.InfuraRinkebyWeb3()
+            let receipt = try web3.eth.getTransactionReceipt("0x2ca77daaad5908fa8942828d496903b287b76260c396c6262c417abd54055ed9")
+            print("hash = \(receipt)")
+        } catch {
+            XCTFail()
+        }
+    }
+    
+    func testgetTransactionDetailsWithEip1559() throws {
+        do {
+            let web3 = Web3.InfuraRinkebyWeb3()
+            let details = try web3.eth.getTransactionDetails("0x2ca77daaad5908fa8942828d496903b287b76260c396c6262c417abd54055ed9")
+            print("hash = \(details.transaction.sender?.address)")
+        } catch {
+            XCTFail()
+        }
+    }
+    
 }

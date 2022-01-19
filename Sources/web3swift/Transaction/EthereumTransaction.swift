@@ -25,8 +25,13 @@ public struct EthereumTransaction: CustomStringConvertible {
     public var s: BigUInt = BigUInt(0)
     var chainID: BigUInt? = nil
     
+    public var max_priority_fee_per_gas: BigUInt?
+    public var max_fee_per_gas: BigUInt?
+    public var type: BigUInt = BigUInt(0)
+    
     public var inferedChainID: BigUInt? {
         get{
+            guard self.type == .zero else { return self.chainID }
             if (self.r == BigUInt(0) && self.s == BigUInt(0)) {
                 return self.v
             } else if (self.v == BigUInt(27) || self.v == BigUInt(28)) {
@@ -125,10 +130,14 @@ public struct EthereumTransaction: CustomStringConvertible {
         } else if self.v >= 27 && self.v <= 30 {
             d = BigUInt(27)
         }
-        if (self.chainID != nil && self.chainID != BigUInt(0)) {
-            normalizedV = self.v - d - self.chainID! - self.chainID!
-        } else if (inferedChainID != nil) {
-            normalizedV = self.v - d - inferedChainID! - inferedChainID!
+        if self.type == .zero {
+            if (self.chainID != nil && self.chainID != BigUInt(0)) {
+                normalizedV = self.v - d - self.chainID! - self.chainID!
+            } else if (inferedChainID != nil) && self.max_fee_per_gas == nil && self.max_fee_per_gas == nil {
+                normalizedV = self.v - d - inferedChainID! - inferedChainID!
+            } else {
+                normalizedV = self.v - d
+            }
         } else {
             normalizedV = self.v - d
         }
@@ -166,19 +175,35 @@ public struct EthereumTransaction: CustomStringConvertible {
     public func encode(forSignature:Bool = false, chainID: BigUInt? = nil) -> Data? {
         if (forSignature) {
             if chainID != nil  {
-                let fields = [self.nonce, self.gasPrice, self.gasLimit, self.to.addressData, self.value!, self.data, chainID!, BigUInt(0), BigUInt(0)] as [AnyObject]
-                return RLP.encode(fields)
+                if self.type == .zero {
+                    let fields = [self.nonce, self.gasPrice, self.gasLimit, self.to.addressData, self.value!, self.data, chainID!, BigUInt(0), BigUInt(0)] as [AnyObject]
+                    return RLP.encode(fields)
+                }
+                let fields = [chainID!, self.nonce, self.max_priority_fee_per_gas ?? .zero, self.max_fee_per_gas ?? .zero, self.gasLimit, self.to.addressData, self.value ?? .zero, self.data, []] as [AnyObject]
+                guard let data = RLP.encode(fields) else { return nil }
+                return self.type.serialize() + data
             }
-            else if self.chainID != nil  {
-                let fields = [self.nonce, self.gasPrice, self.gasLimit, self.to.addressData, self.value!, self.data, self.chainID!, BigUInt(0), BigUInt(0)] as [AnyObject]
-                return RLP.encode(fields)
+            else if let chain_id = self.chainID {
+                if self.type == .zero {
+                    let fields = [self.nonce, self.gasPrice, self.gasLimit, self.to.addressData, self.value!, self.data, chain_id, BigUInt(0), BigUInt(0)] as [AnyObject]
+                    return RLP.encode(fields)
+                }
+                let fields = [chain_id, self.nonce, self.max_priority_fee_per_gas ?? .zero, self.max_fee_per_gas ?? .zero, self.gasLimit, self.to.addressData, self.value ?? .zero, self.data, []] as [AnyObject]
+                guard let data = RLP.encode(fields) else { return nil }
+                return self.type.serialize() + data
             } else {
+                guard self.type == .zero else { return nil }
                 let fields = [self.nonce, self.gasPrice, self.gasLimit, self.to.addressData, self.value!, self.data] as [AnyObject]
                 return RLP.encode(fields)
             }
         } else {
-            let fields = [self.nonce, self.gasPrice, self.gasLimit, self.to.addressData, self.value!, self.data, self.v, self.r, self.s] as [AnyObject]
-            return RLP.encode(fields)
+            if self.type == .zero {
+                let fields = [self.nonce, self.gasPrice, self.gasLimit, self.to.addressData, self.value!, self.data, self.v, self.r, self.s] as [AnyObject]
+                return RLP.encode(fields)
+            }
+            let fields = [self.chainID ?? BigUInt(0), self.nonce, self.max_priority_fee_per_gas!, self.max_fee_per_gas!, self.gasLimit, self.to.addressData, self.value!, self.data, [], self.v, self.r, self.s] as [AnyObject]
+            guard let data = RLP.encode(fields) else { return nil }
+            return self.type.serialize() + data
         }
     }
     
@@ -251,6 +276,49 @@ public struct EthereumTransaction: CustomStringConvertible {
             return EthereumTransaction.init(nonce: nonce, gasPrice: gasPrice, gasLimit: gasLimit, to: to, value: value, data: transactionData, v: v, r: r, s: s)
         case 6?:
             return nil
+        case 12?:
+//            [self.chainID ?? BigUInt(0), self.nonce, self.max_priority_fee_per_gas!, self.max_fee_per_gas!, self.gasLimit, self.to.addressData, self.value!, self.data, [], self.v, self.r, self.s]
+            guard let chainIdData = rlpItem[0]!.data else {return nil}
+            let chainID = BigUInt(chainIdData)
+            guard let nonceData = rlpItem[1]!.data else {return nil}
+            let nonce = BigUInt(nonceData)
+            guard let maxPriorityFeePerGasData = rlpItem[2]!.data else {return nil}
+            let maxPriorityFeePerGas = BigUInt(maxPriorityFeePerGasData)
+            guard let maxFeePerGasData = rlpItem[3]!.data else {return nil}
+            let maxFeePerGas = BigUInt(maxFeePerGasData)
+            guard let gasLimitData = rlpItem[4]!.data else {return nil}
+            let gasLimit = BigUInt(gasLimitData)
+            var to:EthereumAddress
+            switch rlpItem[5]!.content {
+            case .noItem:
+                to = EthereumAddress.contractDeploymentAddress()
+            case .data(let addressData):
+                if addressData.count == 0 {
+                    to = EthereumAddress.contractDeploymentAddress()
+                } else if addressData.count == 20 {
+                    guard let addr = EthereumAddress(addressData) else {return nil}
+                    to = addr
+                } else {
+                    return nil
+                }
+            case .list(_, _, _):
+                return nil
+            }
+            guard let valueData = rlpItem[6]!.data else {return nil}
+            let value = BigUInt(valueData)
+            guard let transactionData = rlpItem[7]!.data else {return nil}
+            guard let vData = rlpItem[9]!.data else {return nil}
+            let v = BigUInt(vData)
+            guard let rData = rlpItem[10]!.data else {return nil}
+            let r = BigUInt(rData)
+            guard let sData = rlpItem[11]!.data else {return nil}
+            let s = BigUInt(sData)
+            var transaction = EthereumTransaction(nonce: nonce, gasPrice: BigUInt(0), gasLimit: gasLimit, to: to, value: value, data: transactionData, v: v, r: r, s: s)
+            transaction.type = BigUInt(2)
+            transaction.max_priority_fee_per_gas = maxPriorityFeePerGas
+            transaction.max_fee_per_gas = maxFeePerGas
+            transaction.chainID = chainID
+            return transaction
         default:
             return nil
         }
@@ -393,6 +461,27 @@ public extension EthereumTransaction {
             guard let value = BigUInt(valueString.stripHexPrefix(), radix: 16) else {return nil}
             transaction.value = value
         }
+        
+        if let typeHex = json["type"] as? String {
+            guard let type = BigUInt(typeHex.stripHexPrefix(), radix: 16) else {return nil}
+            transaction.type = type
+        }
+        
+        if let chainIdHex = json["chainId"] as? String {
+            guard let chain_id = BigUInt(chainIdHex.stripHexPrefix(), radix: 16) else {return nil}
+            transaction.chainID = chain_id
+        }
+        
+        if let maxFeePerGasHex = json["maxFeePerGas"] as? String {
+            guard let maxFeePerGas = BigUInt(maxFeePerGasHex.stripHexPrefix(), radix: 16) else {return nil}
+            transaction.max_fee_per_gas = maxFeePerGas
+        }
+        
+        if let maxPriorityFeePerGasHex = json["maxPriorityFeePerGas"] as? String {
+            guard let maxPriorityFeePerGas = BigUInt(maxPriorityFeePerGasHex.stripHexPrefix(), radix: 16) else {return nil}
+            transaction.max_priority_fee_per_gas = maxPriorityFeePerGas
+        }
+        
         let inferedChainID = transaction.inferedChainID
         if (transaction.inferedChainID != nil && transaction.v >= BigUInt(37)) {
             transaction.chainID = inferedChainID

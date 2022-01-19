@@ -25,6 +25,12 @@ public struct TransactionOptions {
     /// Can be nil if one reads the information from the blockchain.
     public var from: EthereumAddress? = nil
     
+    public enum TransactionType {
+        case Legacy
+        case EIP1559(_ maxPriorityFeePerGas: BigUInt, _ maxFeePerGas: BigUInt)
+    }
+    public var transactionType: TransactionType = .Legacy
+    
     public enum GasLimitPolicy {
         case automatic
         case manual(BigUInt)
@@ -156,6 +162,11 @@ public struct TransactionOptions {
             options.callOnBlock = .exactBlockNumber(callOnBlock)
         } else {
             options.callOnBlock = .pending
+        }
+        
+        if let maxPriorityFeePerGasHex = json["maxPriorityFeePerGas"] as? String, let maxPriorityFeePerGas = BigUInt(maxPriorityFeePerGasHex.stripHexPrefix(), radix: 16),
+           let maxFeePerGasHex = json["maxFeePerGas"] as? String, let maxFeePerGas = BigUInt(maxFeePerGasHex.stripHexPrefix(), radix: 16) {
+            options.transactionType = .EIP1559(maxPriorityFeePerGas, maxFeePerGas)
         }
         return options
     }

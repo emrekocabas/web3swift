@@ -18,7 +18,11 @@ public struct Web3Signer {
         var privateKey = try keystore.UNSAFE_getPrivateKeyData(password: password, account: account)
         defer {Data.zero(&privateKey)}
         if (transaction.chainID != nil) {
-            try EIP155Signer.sign(transaction: &transaction, privateKey: privateKey, useExtraEntropy: useExtraEntropy)
+            if transaction.type == .zero {
+                try EIP155Signer.sign(transaction: &transaction, privateKey: privateKey, useExtraEntropy: useExtraEntropy)
+            } else {
+                try EIP2718Signer.sign(transaction: &transaction, privateKey: privateKey, useExtraEntropy: useExtraEntropy)
+            }
         } else {
             try FallbackSigner.sign(transaction: &transaction, privateKey: privateKey, useExtraEntropy: useExtraEntropy)
         }
@@ -129,6 +133,37 @@ public struct Web3Signer {
         
         return signature;
     }
+    
+    public struct EIP2718Signer {
+            public static func sign(transaction:inout EthereumTransaction, privateKey: Data, useExtraEntropy: Bool = false) throws {
+                for _ in 0..<1024 {
+                    let result = self.attemptSignature(transaction: &transaction, privateKey: privateKey, useExtraEntropy: useExtraEntropy)
+                    if (result) {
+                        return
+                    }
+                }
+                throw AbstractKeystoreError.invalidAccountError
+            }
+            
+            private static func attemptSignature(transaction:inout EthereumTransaction, privateKey: Data, useExtraEntropy: Bool = false) -> Bool {
+                guard let chainID = transaction.chainID else {return false}
+                guard let hash = transaction.hashForSignature(chainID: chainID) else {return false}
+                let signature  = SECP256K1.signForRecovery(hash: hash, privateKey: privateKey, useExtraEntropy: useExtraEntropy)
+                guard let serializedSignature = signature.serializedSignature else {return false}
+                guard let unmarshalledSignature = SECP256K1.unmarshalSignature(signatureData: serializedSignature) else {
+                    return false
+                }
+                let originalPublicKey = SECP256K1.privateToPublic(privateKey: privateKey)
+                transaction.v = BigUInt(unmarshalledSignature.v)
+                transaction.r = BigUInt(Data(unmarshalledSignature.r))
+                transaction.s = BigUInt(Data(unmarshalledSignature.s))
+                let recoveredPublicKey = transaction.recoverPublicKey()
+                if (!(originalPublicKey!.constantTimeComparisonTo(recoveredPublicKey))) {
+                    return false
+                }
+                return true
+            }
+        }
     
 }
 

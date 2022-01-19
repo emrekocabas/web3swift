@@ -62,6 +62,17 @@ extension web3.Eth {
             guard let from = mergedOptions.from else {
                 throw Web3Error.inputError(desc: "No 'from' field provided")
             }
+            
+            switch mergedOptions.transactionType {
+            case let .EIP1559(maxPriorityFeePerGas, maxFeePerGas):
+                assembledTransaction.type = BigUInt(2)
+                assembledTransaction.max_priority_fee_per_gas = maxPriorityFeePerGas
+                assembledTransaction.max_fee_per_gas = maxFeePerGas
+                break
+            default:
+                break
+            }
+            
             do {
                 try Web3Signer.signTX(transaction: &assembledTransaction, keystore: self.web3.provider.attachedKeystoreManager!, account: from, password: password)
             } catch {
