@@ -128,8 +128,8 @@ class web3swift_infura_Tests: XCTestCase {
             options.maxFeePerGas = .manual(Web3.Utils.parseToBigUInt("5.000000131 ", units: .Gwei)!)
 //            options.maxPriorityFeePerGas = .manual(.zero)
             options.maxPriorityFeePerGas = .manual(Web3.Utils.parseToBigUInt("1.0", units: .Gwei)!)
-//            let intermediate = try web3.eth.sendERC20tokensWithNaturalUnits(tokenAddress: EthereumAddress("0xc7ad46e0b8a400bb3c915120d284aafba8fc4735")!, from: EthereumAddress("0x6d8e3Af13A7684973db63BA84dfFe42820774aa4")!, to: to, amount: "1", transactionOptions: options)
-            let intermediate = web3.eth.sendETH(to: to, amount: "0.0001")
+            let intermediate = try web3.eth.sendERC20tokensWithNaturalUnits(tokenAddress: EthereumAddress("0xc7ad46e0b8a400bb3c915120d284aafba8fc4735")!, from: EthereumAddress("0x6d8e3Af13A7684973db63BA84dfFe42820774aa4")!, to: to, amount: "1", transactionOptions: options)
+//            let intermediate = web3.eth.sendETH(to: to, amount: "0.0001")
 //            let intermediate = contract.method("fallback", transactionOptions: options)
             guard let result = try intermediate?.send(password: "qqqqqqqq", transactionOptions: options) else { return XCTFail() }
             print("hash = \(result.hash)")

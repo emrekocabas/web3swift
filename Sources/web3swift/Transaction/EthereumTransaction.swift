@@ -201,7 +201,7 @@ public struct EthereumTransaction: CustomStringConvertible {
                 let fields = [self.nonce, self.gasPrice, self.gasLimit, self.to.addressData, self.value!, self.data, self.v, self.r, self.s] as [AnyObject]
                 return RLP.encode(fields)
             }
-            let fields = [self.chainID ?? BigUInt(0), self.nonce, self.max_priority_fee_per_gas!, self.max_fee_per_gas!, self.gasLimit, self.to.addressData, self.value!, self.data, [], self.v, self.r, self.s] as [AnyObject]
+            let fields = [self.chainID ?? BigUInt(0), self.nonce, self.max_priority_fee_per_gas!, self.max_fee_per_gas!, self.gasLimit, self.to.addressData, self.value!, self.data, [], self.v - BigUInt(27), self.r, self.s] as [AnyObject]
             guard let data = RLP.encode(fields) else { return nil }
             return self.type.serialize() + data
         }
@@ -277,7 +277,6 @@ public struct EthereumTransaction: CustomStringConvertible {
         case 6?:
             return nil
         case 12?:
-//            [self.chainID ?? BigUInt(0), self.nonce, self.max_priority_fee_per_gas!, self.max_fee_per_gas!, self.gasLimit, self.to.addressData, self.value!, self.data, [], self.v, self.r, self.s]
             guard let chainIdData = rlpItem[0]!.data else {return nil}
             let chainID = BigUInt(chainIdData)
             guard let nonceData = rlpItem[1]!.data else {return nil}
