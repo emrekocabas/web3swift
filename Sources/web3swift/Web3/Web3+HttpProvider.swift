@@ -41,8 +41,33 @@ public class Web3HttpProvider: Web3Provider {
                     }
                     return nil
                 }
-                guard let result: String = response.getValue(), let intNetworkNumber = Int(result) else {return nil}
-                network = Networks.fromInt(intNetworkNumber)
+                guard let result: BigUInt = response.getValue() else {return nil}
+                network = Networks.Custom(networkID: result)
+                if network == nil {return nil}
+            } else {
+                network = net
+            }
+        } catch {
+            return nil
+        }
+        attachedKeystoreManager = manager
+    }
+    
+    public init?(rpcChainId httpProviderURL: URL, network net: Networks? = nil, keystoreManager manager: KeystoreManager? = nil) {
+        do {
+            guard httpProviderURL.scheme == "http" || httpProviderURL.scheme == "https" else {return nil}
+            url = httpProviderURL
+            if net == nil {
+                let request = JSONRPCRequestFabric.prepareRequest(.chainId, parameters: [])
+                let response = try Web3HttpProvider.post(request, providerURL: httpProviderURL, queue: DispatchQueue.global(qos: .userInteractive), session: session).wait()
+                if response.error != nil {
+                    if response.message != nil {
+                        print(response.message!)
+                    }
+                    return nil
+                }
+                guard let result: BigUInt = response.getValue() else {return nil}
+                network = Networks.Custom(networkID: result)
                 if network == nil {return nil}
             } else {
                 network = net

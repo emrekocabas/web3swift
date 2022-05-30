@@ -68,7 +68,8 @@ public extension Web3 {
         guard let parentBaseFee = parent.baseFeePerGas else { return nil }
 
         // If given blocks ChainVersion is lower than London — always returns InitialBaseFee
-        guard parent.mainChainVersion >= .London else { return Web3.InitialBaseFee }
+        // Ropsten Testnet Network block height lags behind London fork start block
+//        guard parent.mainChainVersion >= .London else { return Web3.InitialBaseFee }
 
         let parentGasTarget = parent.gasLimit / Web3.ElasticityMultiplier
 
