@@ -235,7 +235,7 @@ extension TransactionOptions: Decodable {
             self.to = ethAddr
         }
 
-        self.from = try container.decodeIfPresent(EthereumAddress.self, forKey: .to)
+        self.from = try container.decodeIfPresent(EthereumAddress.self, forKey: .from)
 
         if let gasPrice = try? container.decodeHex(BigUInt.self, forKey: .gasPrice) {
             self.gasPrice = .manual(gasPrice)
@@ -279,4 +279,17 @@ extension TransactionOptions: Decodable {
             self.callOnBlock = defaultOptions.callOnBlock
         }
     }
+}
+
+extension TransactionOptions {
+    @available(*, deprecated, message: "use Decodable instead")
+    public static func fromJSON(_ json: [String: Any]) -> TransactionOptions? {
+        do {
+            let jsonData: Data = try JSONSerialization.data(withJSONObject: json, options: [])
+            return try JSONDecoder().decode(TransactionOptions.self, from: jsonData)
+        } catch {
+            return nil
+        }
+    }
+
 }
