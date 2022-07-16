@@ -176,10 +176,24 @@ public class WriteTransaction: ReadTransaction {
 
                 promisesToFulfill.removeAll()
                 guard case .fulfilled(let nonce) = results[0] else {
-                    throw Web3Error.processingError(desc: "Failed to fetch nonce")
+                    let result0 = results[0]
+                    switch result0 {
+                    case .rejected(let error):
+                        let web3Error = error as! Web3Error
+                        throw Web3Error.processingError(desc: web3Error.errorDescription)
+                    case .fulfilled(_):
+                        throw Web3Error.processingError(desc: "Failed to fetch nonce")
+                    }
                 }
                 guard case .fulfilled(let gasEstimate) = results[1] else {
-                    throw Web3Error.processingError(desc: "Failed to fetch gas estimate")
+                    let result1 = results[1]
+                    switch result1 {
+                    case .rejected(let error):
+                        let web3Error = error as! Web3Error
+                        throw Web3Error.processingError(desc: web3Error.errorDescription)
+                    case .fulfilled(_):
+                        throw Web3Error.processingError(desc: "Failed to fetch gas estimate")
+                    }
                 }
 
                 var finalOptions = TransactionOptions()
